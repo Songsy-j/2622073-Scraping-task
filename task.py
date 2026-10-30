@@ -15,17 +15,13 @@ headers = {
     )
 }
 
-
 visited_urls = set()
 queue = [url]
-
-
 sitemap_data = {}
 
 print("武蔵野大学のサイトマップのクロールを開始します...")
 
-
-max_pages = 30
+max_pages = 1500
 
 while queue and len(visited_urls) < max_pages:
   current_url = queue.pop(0)
@@ -36,42 +32,40 @@ while queue and len(visited_urls) < max_pages:
   print(f"クロール中: {current_url}")
   visited_urls.add(current_url)
 
+  res = None
+  
+  for attempt in range(3):
+    try:
+      res = requests.get(current_url, headers=headers, timeout=15)
+      break
+    except Exception as e:
+      if attempt == 2:
+        print(f"スキップ（接続失敗） {current_url}: {e}")
+      else:
+        time.sleep(1)
+
+  if not res or res.status_code != 200:
+    continue
+
   try:
-    
-    res = requests.get(current_url, headers=headers, timeout=10)
-
-    
-    time.sleep(1)
-
-    
-    if res.status_code != 200:
-      print(f"スキップ：ステータスコード {res.status_code}")
-      continue
-
+    time.sleep(0.5)  
     res.encoding = res.apparent_encoding
-
-    
     soup = BeautifulSoup(res.text, 'html.parser')
 
-    
     title_tag = soup.find('title')
     title_text = title_tag.text.strip() if title_tag else "No Title"
 
-    
     sitemap_data[current_url] = title_text
 
-    
     for a_tag in soup.find_all('a', href=True):
       href = a_tag['href']
-
-      
       absolute_url = urljoin(current_url, href)
-
-      
       parsed_url = urlparse(absolute_url)
       clean_url = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}"
 
-      
+      if clean_url.lower().endswith(('.pdf', '.jpg', '.jpeg', '.png', '.gif', '.zip', '.mp4', '.css', '.js')):
+        continue
+
       if (
           parsed_url.netloc == domain
           and clean_url not in visited_urls
@@ -80,8 +74,7 @@ while queue and len(visited_urls) < max_pages:
         queue.append(clean_url)
 
   except Exception as e:
-    print(f"エラー発生 {current_url}: {e}")
-
+    print(f"解析エラー発生 {current_url}: {e}")
 
 csv_filename = "musashino_sitemap.csv"
 with open(csv_filename, mode="w", encoding="utf-8-sig", newline="") as f:
